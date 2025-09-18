@@ -1,0 +1,119 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 
+    示例WSDL文件
+    请将此文件替换为您的C#服务生成的实际WSDL文件
+    
+    您可以通过以下方式获取WSDL文件：
+    1. 访问 http://your-csharp-service-url/Service.asmx?wsdl
+    2. 保存为service.wsdl文件
+    3. 放置在src/main/resources/wsdl/目录下
+-->
+<wsdl:definitions 
+    xmlns:wsdl="http://schemas.xmlsoap.org/wsdl/"
+    xmlns:soap="http://schemas.xmlsoap.org/wsdl/soap/"
+    xmlns:tns="http://tempuri.org/"
+    xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+    targetNamespace="http://tempuri.org/">
+
+    <wsdl:types>
+        <xsd:schema elementFormDefault="qualified" targetNamespace="http://tempuri.org/">
+            
+            <!-- GetVersion方法的请求和响应定义 -->
+            <xsd:element name="GetVersion">
+                <xsd:complexType />
+            </xsd:element>
+            
+            <xsd:element name="GetVersionResponse">
+                <xsd:complexType>
+                    <xsd:sequence>
+                        <xsd:element minOccurs="0" name="GetVersionResult" type="xsd:string" />
+                    </xsd:sequence>
+                </xsd:complexType>
+            </xsd:element>
+            
+            <!-- Echo方法的请求和响应定义 -->
+            <xsd:element name="Echo">
+                <xsd:complexType>
+                    <xsd:sequence>
+                        <xsd:element minOccurs="0" name="message" type="xsd:string" />
+                    </xsd:sequence>
+                </xsd:complexType>
+            </xsd:element>
+            
+            <xsd:element name="EchoResponse">
+                <xsd:complexType>
+                    <xsd:sequence>
+                        <xsd:element minOccurs="0" name="EchoResult" type="xsd:string" />
+                    </xsd:sequence>
+                </xsd:complexType>
+            </xsd:element>
+            
+        </xsd:schema>
+    </wsdl:types>
+
+    <!-- 消息定义 -->
+    <wsdl:message name="GetVersionSoapIn">
+        <wsdl:part name="parameters" element="tns:GetVersion" />
+    </wsdl:message>
+    
+    <wsdl:message name="GetVersionSoapOut">
+        <wsdl:part name="parameters" element="tns:GetVersionResponse" />
+    </wsdl:message>
+    
+    <wsdl:message name="EchoSoapIn">
+        <wsdl:part name="parameters" element="tns:Echo" />
+    </wsdl:message>
+    
+    <wsdl:message name="EchoSoapOut">
+        <wsdl:part name="parameters" element="tns:EchoResponse" />
+    </wsdl:message>
+
+    <!-- 端口类型定义 -->
+    <wsdl:portType name="ServiceSoap">
+        
+        <wsdl:operation name="GetVersion">
+            <wsdl:input message="tns:GetVersionSoapIn" />
+            <wsdl:output message="tns:GetVersionSoapOut" />
+        </wsdl:operation>
+        
+        <wsdl:operation name="Echo">
+            <wsdl:input message="tns:EchoSoapIn" />
+            <wsdl:output message="tns:EchoSoapOut" />
+        </wsdl:operation>
+        
+    </wsdl:portType>
+
+    <!-- 绑定定义 -->
+    <wsdl:binding name="ServiceSoap" type="tns:ServiceSoap">
+        <soap:binding transport="http://schemas.xmlsoap.org/soap/http" />
+        
+        <wsdl:operation name="GetVersion">
+            <soap:operation soapAction="http://tempuri.org/GetVersion" style="document" />
+            <wsdl:input>
+                <soap:body use="literal" />
+            </wsdl:input>
+            <wsdl:output>
+                <soap:body use="literal" />
+            </wsdl:output>
+        </wsdl:operation>
+        
+        <wsdl:operation name="Echo">
+            <soap:operation soapAction="http://tempuri.org/Echo" style="document" />
+            <wsdl:input>
+                <soap:body use="literal" />
+            </wsdl:input>
+            <wsdl:output>
+                <soap:body use="literal" />
+            </wsdl:output>
+        </wsdl:operation>
+        
+    </wsdl:binding>
+
+    <!-- 服务定义 -->
+    <wsdl:service name="Service">
+        <wsdl:port name="ServiceSoap" binding="tns:ServiceSoap">
+            <soap:address location="http://localhost:8080/Service.asmx" />
+        </wsdl:port>
+    </wsdl:service>
+
+</wsdl:definitions>

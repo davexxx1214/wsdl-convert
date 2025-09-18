@@ -1,0 +1,128 @@
+# WSDL转RESTful API转换器配置文件
+
+server:
+  port: 8080
+  servlet:
+    context-path: /wsdl-converter
+
+spring:
+  application:
+    name: wsdl-restful-converter
+  
+  # Jackson JSON配置
+  jackson:
+    default-property-inclusion: non_null
+    serialization:
+      write-dates-as-timestamps: false
+      indent-output: true
+    deserialization:
+      fail-on-unknown-properties: false
+
+# WSDL服务配置
+wsdl:
+  # C#后台服务配置
+  service:
+    url: http://localhost:8080/Service.asmx  # C#服务的实际地址
+    namespace: http://tempuri.org/           # WSDL命名空间
+  
+  # WSDL文件配置
+  file:
+    url: ""                                  # WSDL文件的URL地址（优先级高）
+    path: src/main/resources/wsdl/service.wsdl  # 本地WSDL文件路径
+  
+  # 连接配置
+  connection:
+    timeout: 30000                           # 连接超时时间（毫秒）
+  receive:
+    timeout: 60000                           # 接收超时时间（毫秒）
+
+# CXF配置
+cxf:
+  path: /services
+  servlet:
+    init:
+      service-list-path: /info
+  jaxws:
+    classes-cache-size: 256
+
+# 日志配置
+logging:
+  level:
+    com.example.wsdlconverter: DEBUG
+    org.apache.cxf: INFO
+    org.springframework.web: INFO
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
+    file: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+  file:
+    name: logs/wsdl-converter.log
+
+# Actuator监控配置
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,env
+  endpoint:
+    health:
+      show-details: always
+
+# Swagger文档配置
+springdoc:
+  api-docs:
+    path: /api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    tryItOutEnabled: true
+    operationsSorter: method
+    tagsSorter: alpha
+  show-actuator: true
+
+---
+# 开发环境配置
+spring:
+  config:
+    activate:
+      on-profile: dev
+
+wsdl:
+  service:
+    url: http://localhost:8080/Service.asmx
+
+logging:
+  level:
+    com.example.wsdlconverter: DEBUG
+    org.apache.cxf: DEBUG
+
+---
+# 生产环境配置
+spring:
+  config:
+    activate:
+      on-profile: prod
+
+wsdl:
+  service:
+    url: http://production-server:8080/Service.asmx
+
+logging:
+  level:
+    com.example.wsdlconverter: INFO
+    org.apache.cxf: WARN
+  file:
+    name: /var/log/wsdl-converter/application.log
+
+---
+# 测试环境配置
+spring:
+  config:
+    activate:
+      on-profile: test
+
+wsdl:
+  service:
+    url: http://test-server:8080/Service.asmx
+
+logging:
+  level:
+    com.example.wsdlconverter: DEBUG
