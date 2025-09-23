@@ -5,6 +5,9 @@ import com.example.wsdlconverter.exception.WsdlServiceException;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.cxf.endpoint.dynamic.DynamicClientFactory;
 import org.apache.cxf.jaxws.endpoint.dynamic.JaxWsDynamicClientFactory;
+import org.apache.cxf.ws.security.wss4j.WSS4JOutInterceptor;
+import org.apache.wss4j.dom.handler.WSHandlerConstants;
+import org.apache.wss4j.common.ext.WSPasswordCallback;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -45,6 +48,15 @@ public class WsdlServiceAdapter {
     @Value("${wsdl.file.path:src/main/resources/wsdl/service.wsdl}")
     private String wsdlFilePath;
 
+    @Value("${wsdl.security.enabled:false}")
+    private boolean securityEnabled;
+
+    @Value("${wsdl.security.username:}")
+    private String securityUsername;
+
+    @Value("${wsdl.security.password:}")
+    private String securityPassword;
+
     private org.apache.cxf.endpoint.Client dynamicClient;
     private Definition wsdlDefinition;
     private List<String> availableMethods;
@@ -61,20 +73,27 @@ public class WsdlServiceAdapter {
             String wsdlSource = determineWsdlSource();
             log.info("使用WSDL源: {}", wsdlSource);
             
-            // 创建动态客户端
-            createDynamicClient(wsdlSource);
+            // 尝试创建动态客户端
+            boolean clientCreated = tryCreateDynamicClient(wsdlSource);
             
-            // 解析WSDL定义
-            parseWsdlDefinition(wsdlSource);
-            
-            // 提取可用方法
-            extractAvailableMethods();
-            
-            log.info("WSDL客户端初始化完成，可用方法数量: {}", availableMethods.size());
+            if (clientCreated) {
+                // 解析WSDL定义
+                parseWsdlDefinition(wsdlSource);
+                
+                // 提取可用方法
+                extractAvailableMethods();
+                
+                log.info("WSDL客户端初始化完成，可用方法数量: {}", availableMethods.size());
+            } else {
+                log.warn("WSDL客户端初始化失败，应用将以有限功能模式启动");
+                // 设置默认方法以支持基本操作
+                setDefaultMethods();
+            }
             
         } catch (Exception e) {
             log.error("初始化WSDL客户端失败: {}", e.getMessage(), e);
-            // 不抛出异常，允许应用启动，但标记为不健康状态
+            // 设置默认方法以支持基本操作
+            setDefaultMethods();
         }
     }
 
@@ -82,17 +101,39 @@ public class WsdlServiceAdapter {
      * 确定WSDL源（URL或文件路径）
      */
     private String determineWsdlSource() {
+        // 优先级1：明确指定的WSDL URL
         if (wsdlFileUrl != null && !wsdlFileUrl.trim().isEmpty()) {
+            log.info("使用配置的WSDL URL: {}", wsdlFileUrl);
             return wsdlFileUrl;
-        } else {
-            // 检查本地文件是否存在
-            java.io.File wsdlFile = new java.io.File(wsdlFilePath);
-            if (wsdlFile.exists()) {
-                return wsdlFile.getAbsolutePath();
-            } else {
-                // 使用服务URL + ?wsdl
-                return wsdlClientConfig.getServiceUrl() + "?wsdl";
-            }
+        }
+        
+        // 优先级2：本地WSDL文件
+        java.io.File wsdlFile = new java.io.File(wsdlFilePath);
+        if (wsdlFile.exists()) {
+            log.info("使用本地WSDL文件: {}", wsdlFile.getAbsolutePath());
+            return wsdlFile.getAbsolutePath();
+        }
+        
+        // 优先级3：尝试从服务URL + ?wsdl获取
+        String wsdlUrl = wsdlClientConfig.getServiceUrl() + "?wsdl";
+        log.warn("本地WSDL文件不存在，尝试从服务URL获取: {}", wsdlUrl);
+        log.warn("注意：如果服务不支持?wsdl查询，初始化可能失败");
+        return wsdlUrl;
+    }
+
+    /**
+     * 尝试创建动态客户端
+     * @param wsdlSource WSDL源
+     * @return 是否创建成功
+     */
+    private boolean tryCreateDynamicClient(String wsdlSource) {
+        try {
+            createDynamicClient(wsdlSource);
+            return true;
+        } catch (Exception e) {
+            log.error("创建动态客户端失败: {}", e.getMessage());
+            log.error("可能的原因: 1) WSDL URL无法访问 2) 本地WSDL文件不存在或格式错误 3) 网络连接问题");
+            return false;
         }
     }
 
@@ -102,6 +143,12 @@ public class WsdlServiceAdapter {
     private void createDynamicClient(String wsdlSource) throws Exception {
         DynamicClientFactory factory = JaxWsDynamicClientFactory.newInstance();
         dynamicClient = factory.createClient(wsdlSource);
+        
+        // 配置安全设置（如果启用）
+        if (securityEnabled) {
+            configureDynamicClientSecurity();
+        }
+        
         log.info("动态客户端创建成功");
     }
 
@@ -305,5 +352,62 @@ public class WsdlServiceAdapter {
     public void reinitializeClient() {
         log.info("重新初始化WSDL客户端...");
         initializeWsdlClient();
+    }
+
+    /**
+     * 设置默认方法（当WSDL无法获取时）
+     */
+    private void setDefaultMethods() {
+        availableMethods = new ArrayList<>();
+        availableMethods.add("GetVersion");
+        availableMethods.add("Echo");
+        availableMethods.add("Ping");
+        log.info("设置默认可用方法: {}", availableMethods);
+    }
+
+    /**
+     * 配置动态客户端的安全设置
+     */
+    private void configureDynamicClientSecurity() {
+        try {
+            Map<String, Object> properties = new HashMap<>();
+            
+            // 配置WSS4J出站安全
+            properties.put(WSHandlerConstants.ACTION, WSHandlerConstants.USERNAME_TOKEN);
+            properties.put(WSHandlerConstants.USER, securityUsername);
+            properties.put(WSHandlerConstants.PASSWORD_TYPE, "PasswordText");
+            properties.put(WSHandlerConstants.PW_CALLBACK_REF, new ClientPasswordCallback(securityPassword));
+            
+            // 创建WSS4J出站拦截器
+            WSS4JOutInterceptor wssOut = new WSS4JOutInterceptor(properties);
+            dynamicClient.getOutInterceptors().add(wssOut);
+            
+            log.info("动态客户端安全配置完成");
+            
+        } catch (Exception e) {
+            log.error("配置动态客户端安全设置失败: {}", e.getMessage(), e);
+        }
+    }
+
+    /**
+     * 密码回调处理器
+     */
+    private static class ClientPasswordCallback implements javax.security.auth.callback.CallbackHandler {
+        private final String password;
+
+        public ClientPasswordCallback(String password) {
+            this.password = password;
+        }
+
+        @Override
+        public void handle(javax.security.auth.callback.Callback[] callbacks) 
+                throws java.io.IOException, javax.security.auth.callback.UnsupportedCallbackException {
+            for (javax.security.auth.callback.Callback callback : callbacks) {
+                if (callback instanceof WSPasswordCallback) {
+                    WSPasswordCallback pc = (WSPasswordCallback) callback;
+                    pc.setPassword(password);
+                }
+            }
+        }
     }
 }

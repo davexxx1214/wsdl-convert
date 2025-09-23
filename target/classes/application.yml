@@ -22,19 +22,26 @@ spring:
 wsdl:
   # C#后台服务配置
   service:
-    url: http://localhost:8080/Service.asmx  # C#服务的实际地址
+    url: https://localhost:6666/pamservicelayer/service  # C#服务的实际地址
     namespace: http://tempuri.org/           # WSDL命名空间
   
   # WSDL文件配置
   file:
-    url: ""                                  # WSDL文件的URL地址（优先级高）
-    path: src/main/resources/wsdl/service.wsdl  # 本地WSDL文件路径
+    url: ""                                  # WSDL文件的URL地址（优先级最高）
+    path: src/main/resources/wsdl/service.wsdl  # 本地WSDL文件路径（优先级中等）
+    # 注意: 如果C#服务不支持?wsdl查询，请将真实的WSDL文件保存到上述路径，或配置url指向WSDL文件
   
   # 连接配置
   connection:
     timeout: 30000                           # 连接超时时间（毫秒）
   receive:
     timeout: 60000                           # 接收超时时间（毫秒）
+  
+  # 安全配置
+  security:
+    enabled: true                            # 启用WS-Security
+    username: your_username                  # 用户名（请替换为实际用户名）
+    password: your_password                  # 密码（请替换为实际密码）
 
 # CXF配置
 cxf:
@@ -87,7 +94,7 @@ spring:
 
 wsdl:
   service:
-    url: http://localhost:8080/Service.asmx
+    url: https://localhost:6666/pamservicelayer/service
 
 logging:
   level:
