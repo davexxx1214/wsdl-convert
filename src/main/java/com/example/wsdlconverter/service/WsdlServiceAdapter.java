@@ -41,6 +41,9 @@ public class WsdlServiceAdapter {
     @Autowired
     private WsdlClientConfig wsdlClientConfig;
 
+    @Autowired
+    private WsdlResolverService wsdlResolverService;
+
 
     @Value("${wsdl.file.url:}")
     private String wsdlFileUrl;
@@ -104,6 +107,18 @@ public class WsdlServiceAdapter {
         // 优先级1：明确指定的WSDL URL
         if (wsdlFileUrl != null && !wsdlFileUrl.trim().isEmpty()) {
             log.info("使用配置的WSDL URL: {}", wsdlFileUrl);
+            
+            // 检查是否为复杂WSDL（需要解析嵌套引用）
+            if (isComplexWsdlUrl(wsdlFileUrl)) {
+                log.info("检测到复杂WSDL，开始解析嵌套引用...");
+                try {
+                    return wsdlResolverService.resolveComplexWsdl(wsdlFileUrl);
+                } catch (Exception e) {
+                    log.error("解析复杂WSDL失败: {}", e.getMessage());
+                    return wsdlFileUrl; // 回退到原始URL
+                }
+            }
+            
             return wsdlFileUrl;
         }
         
@@ -117,8 +132,33 @@ public class WsdlServiceAdapter {
         // 优先级3：尝试从服务URL + ?wsdl获取
         String wsdlUrl = wsdlClientConfig.getServiceUrl() + "?wsdl";
         log.warn("本地WSDL文件不存在，尝试从服务URL获取: {}", wsdlUrl);
-        log.warn("注意：如果服务不支持?wsdl查询，初始化可能失败");
-        return wsdlUrl;
+        
+        // 检查URL是否可访问
+        if (wsdlResolverService.isUrlAccessible(wsdlUrl)) {
+            // 检查是否为复杂WSDL
+            if (isComplexWsdlUrl(wsdlUrl)) {
+                log.info("检测到复杂WSDL，开始解析嵌套引用...");
+                try {
+                    return wsdlResolverService.resolveComplexWsdl(wsdlUrl);
+                } catch (Exception e) {
+                    log.error("解析复杂WSDL失败: {}", e.getMessage());
+                    return wsdlUrl; // 回退到原始URL
+                }
+            }
+            return wsdlUrl;
+        } else {
+            log.warn("WSDL URL不可访问: {}", wsdlUrl);
+            log.warn("无法获取WSDL文档，将使用默认方法启动");
+            return null; // 返回null表示无法获取WSDL
+        }
+    }
+
+    /**
+     * 判断是否为复杂WSDL（包含嵌套引用）
+     */
+    private boolean isComplexWsdlUrl(String url) {
+        // 简单启发式判断：如果URL包含特定模式，认为可能是复杂WSDL
+        return url.contains("?") || url.contains("wsdl") || url.toLowerCase().contains("service");
     }
 
     /**
@@ -127,6 +167,11 @@ public class WsdlServiceAdapter {
      * @return 是否创建成功
      */
     private boolean tryCreateDynamicClient(String wsdlSource) {
+        if (wsdlSource == null) {
+            log.warn("WSDL源为空，无法创建动态客户端");
+            return false;
+        }
+        
         try {
             createDynamicClient(wsdlSource);
             return true;

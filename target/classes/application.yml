@@ -29,7 +29,15 @@ wsdl:
   file:
     url: ""                                  # WSDL文件的URL地址（优先级最高）
     path: src/main/resources/wsdl/service.wsdl  # 本地WSDL文件路径（优先级中等）
-    # 注意: 如果C#服务不支持?wsdl查询，请将真实的WSDL文件保存到上述路径，或配置url指向WSDL文件
+    # 示例复杂WSDL URL: "https://your-server.com/service?wsdl"
+    # 系统会自动解析和下载所有嵌套的WSDL和XSD引用
+  
+  # WSDL解析配置
+  resolver:
+    enabled: true                            # 启用复杂WSDL解析
+    timeout: 30000                           # 单个文件下载超时（毫秒）
+    max-depth: 10                            # 最大嵌套深度
+    cache-enabled: true                      # 启用文档缓存
   
   # 连接配置
   connection:

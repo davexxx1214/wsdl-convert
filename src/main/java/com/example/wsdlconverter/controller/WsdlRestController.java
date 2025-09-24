@@ -27,6 +27,9 @@ public class WsdlRestController {
     @Autowired
     private WsdlServiceAdapter wsdlServiceAdapter;
 
+    @Autowired
+    private com.example.wsdlconverter.service.WsdlResolverService wsdlResolverService;
+
 
     /**
      * 调用WSDL服务的通用接口
@@ -156,6 +159,127 @@ public class WsdlRestController {
             log.error("健康检查失败: {}", e.getMessage(), e);
             return ResponseEntity.status(503)
                     .body(Map.of("status", "错误", "message", e.getMessage(), "timestamp", System.currentTimeMillis()));
+        }
+    }
+
+    /**
+     * 手动解析复杂WSDL
+     * 
+     * @param wsdlUrl WSDL URL
+     * @return 解析结果
+     */
+    @PostMapping("/resolve-wsdl")
+    @Operation(summary = "解析复杂WSDL", 
+               description = "手动解析包含嵌套引用的WSDL文档")
+    public ResponseEntity<Object> resolveComplexWsdl(
+            @Parameter(description = "WSDL URL", required = true)
+            @RequestParam String wsdlUrl) {
+        
+        try {
+            log.info("手动解析WSDL: {}", wsdlUrl);
+            
+            if (wsdlUrl == null || wsdlUrl.trim().isEmpty()) {
+                return ResponseEntity.badRequest()
+                        .body(Map.of("error", "WSDL URL不能为空"));
+            }
+            
+            // 检查URL是否可访问
+            if (!wsdlResolverService.isUrlAccessible(wsdlUrl)) {
+                return ResponseEntity.badRequest()
+                        .body(Map.of("error", "WSDL URL不可访问", "url", wsdlUrl));
+            }
+            
+            // 解析WSDL
+            String resolvedWsdlPath = wsdlResolverService.resolveComplexWsdl(wsdlUrl);
+            
+            Map<String, Object> result = new HashMap<>();
+            result.put("success", true);
+            result.put("originalUrl", wsdlUrl);
+            result.put("resolvedPath", resolvedWsdlPath);
+            result.put("message", "WSDL解析成功");
+            result.put("timestamp", System.currentTimeMillis());
+            
+            log.info("WSDL解析完成: {}", wsdlUrl);
+            return ResponseEntity.ok(result);
+            
+        } catch (Exception e) {
+            log.error("WSDL解析失败: {}, 错误: {}", wsdlUrl, e.getMessage(), e);
+            return ResponseEntity.internalServerError()
+                    .body(Map.of("error", "WSDL解析失败", "message", e.getMessage(), "url", wsdlUrl));
+        }
+    }
+
+    /**
+     * 验证WSDL URL可访问性
+     * 
+     * @param wsdlUrl WSDL URL
+     * @return 验证结果
+     */
+    @GetMapping("/validate-wsdl-url")
+    @Operation(summary = "验证WSDL URL", 
+               description = "检查WSDL URL是否可访问")
+    public ResponseEntity<Object> validateWsdlUrl(
+            @Parameter(description = "WSDL URL", required = true)
+            @RequestParam String wsdlUrl) {
+        
+        try {
+            if (wsdlUrl == null || wsdlUrl.trim().isEmpty()) {
+                return ResponseEntity.badRequest()
+                        .body(Map.of("error", "WSDL URL不能为空"));
+            }
+            
+            boolean isAccessible = wsdlResolverService.isUrlAccessible(wsdlUrl);
+            
+            Map<String, Object> result = new HashMap<>();
+            result.put("url", wsdlUrl);
+            result.put("accessible", isAccessible);
+            result.put("message", isAccessible ? "URL可访问" : "URL不可访问");
+            result.put("timestamp", System.currentTimeMillis());
+            
+            return ResponseEntity.ok(result);
+            
+        } catch (Exception e) {
+            log.error("验证WSDL URL失败: {}, 错误: {}", wsdlUrl, e.getMessage(), e);
+            return ResponseEntity.internalServerError()
+                    .body(Map.of("error", "验证失败", "message", e.getMessage(), "url", wsdlUrl));
+        }
+    }
+
+    /**
+     * 清理临时文件
+     * 
+     * @return 清理结果
+     */
+    @PostMapping("/cleanup")
+    @Operation(summary = "清理临时文件", 
+               description = "清理WSDL解析过程中生成的临时文件")
+    public ResponseEntity<Object> cleanupTempFiles() {
+        try {
+            wsdlResolverService.cleanupTempFiles();
+            return ResponseEntity.ok(Map.of("message", "临时文件清理完成", "timestamp", System.currentTimeMillis()));
+        } catch (Exception e) {
+            log.error("清理临时文件失败: {}", e.getMessage(), e);
+            return ResponseEntity.internalServerError()
+                    .body(Map.of("error", "清理失败", "message", e.getMessage()));
+        }
+    }
+
+    /**
+     * 重新初始化WSDL客户端
+     * 
+     * @return 初始化结果
+     */
+    @PostMapping("/reinitialize")
+    @Operation(summary = "重新初始化客户端", 
+               description = "重新初始化WSDL客户端")
+    public ResponseEntity<Object> reinitializeClient() {
+        try {
+            wsdlServiceAdapter.reinitializeClient();
+            return ResponseEntity.ok(Map.of("message", "客户端重新初始化完成", "timestamp", System.currentTimeMillis()));
+        } catch (Exception e) {
+            log.error("重新初始化客户端失败: {}", e.getMessage(), e);
+            return ResponseEntity.internalServerError()
+                    .body(Map.of("error", "重新初始化失败", "message", e.getMessage()));
         }
     }
 }
