@@ -10,10 +10,12 @@ import org.apache.cxf.transports.http.configuration.HTTPClientPolicy;
 import org.apache.cxf.ws.security.wss4j.WSS4JOutInterceptor;
 import org.apache.wss4j.dom.handler.WSHandlerConstants;
 import org.apache.wss4j.common.ext.WSPasswordCallback;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
+import lombok.extern.slf4j.Slf4j;
 
 import javax.xml.namespace.QName;
 import java.util.HashMap;
@@ -25,7 +27,11 @@ import java.util.Map;
  * 配置Apache CXF客户端，用于与C#后台SOAP服务通信
  */
 @Configuration
+@Slf4j
 public class WsdlClientConfig {
+
+    @Autowired
+    private PfsCompatibleSecurityConfig pfsSecurityConfig;
 
     @Value("${wsdl.service.url:http://localhost:8080/Service.asmx}")
     private String serviceUrl;
@@ -47,6 +53,18 @@ public class WsdlClientConfig {
 
     @Value("${wsdl.security.enabled:false}")
     private boolean securityEnabled;
+
+    @Value("${wsdl.security.use-pfs-compatible:true}")
+    private boolean usePfsCompatible;
+
+    @Value("${wsdl.security.pfs.client-id:DEFAULT}")
+    private String pfsClientId;
+
+    @Value("${wsdl.security.pfs.windows-authentication:false}")
+    private boolean pfsWindowsAuthentication;
+
+    @Value("${wsdl.security.pfs.change-password:false}")
+    private boolean pfsChangePassword;
 
     /**
      * 配置CXF Bus
@@ -121,6 +139,45 @@ public class WsdlClientConfig {
      * 配置WS-Security设置
      */
     private void configureSecurity(JaxWsProxyFactoryBean factory) {
+        if (usePfsCompatible) {
+            // 使用PFS兼容的安全配置
+            configurePfsCompatibleSecurity(factory);
+        } else {
+            // 使用标准的WS-Security配置
+            configureStandardSecurity(factory);
+        }
+    }
+    
+    /**
+     * 配置PFS兼容的安全设置
+     */
+    private void configurePfsCompatibleSecurity(JaxWsProxyFactoryBean factory) {
+        try {
+            // 使用我们自定义的PFS兼容拦截器，传递所有PFS参数
+            PfsCompatibleSecurityConfig.PfsWsSecurityInterceptor pfsInterceptor = 
+                pfsSecurityConfig.createPfsInterceptor(
+                    securityUsername, 
+                    securityPassword, 
+                    pfsClientId, 
+                    pfsWindowsAuthentication, 
+                    pfsChangePassword
+                );
+            
+            factory.getOutInterceptors().add(pfsInterceptor);
+            
+            log.info("已配置PFS兼容的WS-Security设置 - ClientID: {}, WindowsAuth: {}, ChangePassword: {}", 
+                    pfsClientId, pfsWindowsAuthentication, pfsChangePassword);
+            
+        } catch (Exception e) {
+            log.error("配置PFS兼容安全设置失败，回退到标准配置: {}", e.getMessage());
+            configureStandardSecurity(factory);
+        }
+    }
+    
+    /**
+     * 配置标准的WS-Security设置
+     */
+    private void configureStandardSecurity(JaxWsProxyFactoryBean factory) {
         Map<String, Object> properties = new HashMap<>();
         
         // 配置WSS4J出站安全
@@ -132,6 +189,8 @@ public class WsdlClientConfig {
         // 创建WSS4J出站拦截器
         WSS4JOutInterceptor wssOut = new WSS4JOutInterceptor(properties);
         factory.getOutInterceptors().add(wssOut);
+        
+        log.info("已配置标准WS-Security设置");
     }
 
     /**

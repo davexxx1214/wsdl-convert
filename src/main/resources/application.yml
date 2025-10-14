@@ -50,6 +50,13 @@ wsdl:
     enabled: true                            # 启用WS-Security
     username: your_username                  # 用户名（请替换为实际用户名）
     password: your_password                  # 密码（请替换为实际密码）
+    use-pfs-compatible: true                 # 启用PFS兼容模式（用于C#自定义认证器）
+    
+    # PFS特定配置
+    pfs:
+      client-id: "DEFAULT"                   # PFS客户端ID
+      windows-authentication: false          # 是否使用Windows认证
+      change-password: false                 # 是否更改密码
 
 # CXF配置
 cxf:

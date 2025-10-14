@@ -1,0 +1,14 @@
+D:\workspace\wsdl-convertor\src\main\java\com\example\wsdlconverter\config\WsdlClientConfig.java
+D:\workspace\wsdl-convertor\target\generated-sources\cxf\com\example\wsdl\generated\EchoResponse.java
+D:\workspace\wsdl-convertor\target\generated-sources\cxf\com\example\wsdl\generated\GetVersionResponse.java
+D:\workspace\wsdl-convertor\target\generated-sources\cxf\com\example\wsdl\generated\GetVersion.java
+D:\workspace\wsdl-convertor\target\generated-sources\cxf\com\example\wsdl\generated\package-info.java
+D:\workspace\wsdl-convertor\target\generated-sources\cxf\com\example\wsdl\generated\Service.java
+D:\workspace\wsdl-convertor\src\main\java\com\example\wsdlconverter\controller\WsdlRestController.java
+D:\workspace\wsdl-convertor\src\main\java\com\example\wsdlconverter\exception\WsdlServiceException.java
+D:\workspace\wsdl-convertor\target\generated-sources\cxf\com\example\wsdl\generated\ServiceSoap.java
+D:\workspace\wsdl-convertor\src\main\java\com\example\wsdlconverter\service\WsdlResolverService.java
+D:\workspace\wsdl-convertor\src\main\java\com\example\wsdlconverter\WsdlConverterApplication.java
+D:\workspace\wsdl-convertor\src\main\java\com\example\wsdlconverter\service\WsdlServiceAdapter.java
+D:\workspace\wsdl-convertor\target\generated-sources\cxf\com\example\wsdl\generated\Echo.java
+D:\workspace\wsdl-convertor\target\generated-sources\cxf\com\example\wsdl\generated\ObjectFactory.java
