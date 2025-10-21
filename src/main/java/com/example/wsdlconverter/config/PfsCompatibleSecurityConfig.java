@@ -55,8 +55,8 @@ public class PfsCompatibleSecurityConfig {
         @Override
         public void handleMessage(SoapMessage message) throws Fault {
             try {
-                // 创建PFS兼容的安全头
-                Element securityHeader = createPfsCompatibleSecurityHeader();
+                // 创建PFS兼容的安全头，并传入message以获取SOAP版本信息
+                Element securityHeader = createPfsCompatibleSecurityHeader(message);
                 
                 // 添加到SOAP消息头
                 Header header = new Header(
@@ -77,7 +77,7 @@ public class PfsCompatibleSecurityConfig {
          * 
          * 根据C#自定义认证器PfsUserNameTokenAuthenticator的要求生成特定格式
          */
-        private Element createPfsCompatibleSecurityHeader() throws Exception {
+        private Element createPfsCompatibleSecurityHeader(SoapMessage message) throws Exception {
             DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
             factory.setNamespaceAware(true);
             DocumentBuilder builder = factory.newDocumentBuilder();
@@ -88,7 +88,15 @@ public class PfsCompatibleSecurityConfig {
             security.setAttributeNS(XMLNS_URI, "xmlns:wsse", WSSE_NS);
             security.setAttributeNS(XMLNS_URI, "xmlns:wsu", WSU_NS);
             security.setAttributeNS(XMLNS_URI, "xmlns:pfs", PFS_NS);
-            security.setAttribute("s:mustUnderstand", "1");
+            
+            // 动态、正确地设置mustUnderstand属性
+            String soapNs = message.getVersion().getNamespace();
+            String prefix = message.getEnvelope().getPrefix();
+            if (prefix == null || prefix.isEmpty()) {
+                // 如果在信封上找不到前缀，则使用启发式方法
+                prefix = soapNs.equals("http://www.w3.org/2003/05/soap-envelope") ? "s" : "soap";
+            }
+            security.setAttributeNS(soapNs, prefix + ":mustUnderstand", "1");
             
             // 创建PFS特定的安全令牌结构
             createPfsSecurityToken(doc, security);
@@ -101,7 +109,7 @@ public class PfsCompatibleSecurityConfig {
          * 
          * 根据图片中显示的正确格式生成PFS安全令牌
          */
-        private void createPfsSecurityToken(Document doc, Element security) throws Exception {
+        private void createPfsSecurityToken(Document doc, Element security) {
             // 创建PFS客户端ID
             Element pfsClientIdElem = doc.createElementNS(PFS_NS, "pfs:PfsClientID");
             pfsClientIdElem.setTextContent(clientId != null ? clientId : "DEFAULT");
