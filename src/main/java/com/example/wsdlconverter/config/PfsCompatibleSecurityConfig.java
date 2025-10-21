@@ -6,6 +6,7 @@ import org.apache.cxf.interceptor.Fault;
 import org.apache.cxf.phase.AbstractPhaseInterceptor;
 import org.apache.cxf.phase.Phase;
 import org.springframework.stereotype.Component;
+import lombok.extern.slf4j.Slf4j;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 
@@ -28,6 +29,7 @@ public class PfsCompatibleSecurityConfig {
      * 这个拦截器专门为了与C#的PfsUserNameTokenAuthenticator兼容而设计
      * 它会生成符合PFS期望格式的安全头
      */
+    @Slf4j
     public static class PfsWsSecurityInterceptor extends AbstractPhaseInterceptor<SoapMessage> {
         
         private final String username;
@@ -44,7 +46,8 @@ public class PfsCompatibleSecurityConfig {
         
         public PfsWsSecurityInterceptor(String username, String password, String clientId, 
                                        boolean windowsAuthentication, boolean changePassword) {
-            super(Phase.WRITE_ENDING);
+            // 使用PRE_PROTOCOL阶段，在协议处理之前添加安全头
+            super(Phase.PRE_PROTOCOL);
             this.username = username;
             this.password = password;
             this.clientId = clientId;
@@ -55,19 +58,26 @@ public class PfsCompatibleSecurityConfig {
         @Override
         public void handleMessage(SoapMessage message) throws Fault {
             try {
-                // 创建PFS兼容的安全头，并传入message以获取SOAP版本信息
+                // 创建PFS兼容的安全头
                 Element securityHeader = createPfsCompatibleSecurityHeader(message);
                 
-                // 添加到SOAP消息头
-                Header header = new Header(
-                    new QName(WSSE_NS, "Security", "wsse"), 
-                    securityHeader
-                );
+                // 创建带有正确QName的Header
+                QName securityQName = new QName(WSSE_NS, "Security", "wsse");
+                Header header = new Header(securityQName, securityHeader);
                 
+                // 添加到SOAP消息头列表
                 List<Header> headers = message.getHeaders();
+                
+                // 先移除可能存在的旧安全头（避免重复）
+                headers.removeIf(h -> securityQName.equals(h.getName()));
+                
+                // 添加新的安全头
                 headers.add(header);
                 
+                log.debug("PFS安全头已添加到SOAP消息");
+                
             } catch (Exception e) {
+                log.error("添加PFS安全头失败: {}", e.getMessage(), e);
                 throw new Fault(e);
             }
         }
@@ -89,11 +99,17 @@ public class PfsCompatibleSecurityConfig {
             security.setAttributeNS(XMLNS_URI, "xmlns:wsu", WSU_NS);
             security.setAttributeNS(XMLNS_URI, "xmlns:pfs", PFS_NS);
             
-            // 动态、正确地设置mustUnderstand属性
-            String soapNs = message.getVersion().getNamespace();
-            // 根据SOAP命名空间确定前缀（SOAP 1.2使用's'，SOAP 1.1使用'soap'）
-            String prefix = "http://www.w3.org/2003/05/soap-envelope".equals(soapNs) ? "s" : "soap";
-            security.setAttributeNS(soapNs, prefix + ":mustUnderstand", "1");
+            // 设置mustUnderstand属性
+            // 注意：CXF会自动处理SOAP版本相关的命名空间
+            try {
+                String soapNs = message.getVersion().getNamespace();
+                String prefix = "http://www.w3.org/2003/05/soap-envelope".equals(soapNs) ? "s" : "soap";
+                security.setAttributeNS(soapNs, prefix + ":mustUnderstand", "1");
+            } catch (Exception e) {
+                // 如果无法获取SOAP版本，使用简单的mustUnderstand属性
+                log.warn("无法获取SOAP版本信息，使用默认mustUnderstand设置");
+                security.setAttribute("mustUnderstand", "1");
+            }
             
             // 创建PFS特定的安全令牌结构
             createPfsSecurityToken(doc, security);
