@@ -91,11 +91,8 @@ public class PfsCompatibleSecurityConfig {
             
             // 动态、正确地设置mustUnderstand属性
             String soapNs = message.getVersion().getNamespace();
-            String prefix = message.getEnvelope().getPrefix();
-            if (prefix == null || prefix.isEmpty()) {
-                // 如果在信封上找不到前缀，则使用启发式方法
-                prefix = soapNs.equals("http://www.w3.org/2003/05/soap-envelope") ? "s" : "soap";
-            }
+            // 根据SOAP命名空间确定前缀（SOAP 1.2使用's'，SOAP 1.1使用'soap'）
+            String prefix = "http://www.w3.org/2003/05/soap-envelope".equals(soapNs) ? "s" : "soap";
             security.setAttributeNS(soapNs, prefix + ":mustUnderstand", "1");
             
             // 创建PFS特定的安全令牌结构
