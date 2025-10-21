@@ -2,7 +2,8 @@ package com.example.wsdlconverter.config;
 
 import org.apache.cxf.Bus;
 import org.apache.cxf.bus.spring.SpringBus;
-// LoggingFeature import removed - will be handled differently
+import org.apache.cxf.ext.logging.LoggingInInterceptor;
+import org.apache.cxf.ext.logging.LoggingOutInterceptor;
 import org.apache.cxf.frontend.ClientProxy;
 import org.apache.cxf.jaxws.JaxWsProxyFactoryBean;
 import org.apache.cxf.transport.http.HTTPConduit;
@@ -153,6 +154,10 @@ public class WsdlClientConfig {
      */
     private void configurePfsCompatibleSecurity(JaxWsProxyFactoryBean factory) {
         try {
+            // 添加日志拦截器（用于调试）
+            factory.getOutInterceptors().add(new LoggingOutInterceptor());
+            factory.getInInterceptors().add(new LoggingInInterceptor());
+            
             // 使用我们自定义的PFS兼容拦截器，传递所有PFS参数
             PfsCompatibleSecurityConfig.PfsWsSecurityInterceptor pfsInterceptor = 
                 pfsSecurityConfig.createPfsInterceptor(

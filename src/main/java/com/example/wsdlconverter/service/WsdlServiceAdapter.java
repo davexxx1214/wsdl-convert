@@ -5,6 +5,8 @@ import com.example.wsdlconverter.config.PfsCompatibleSecurityConfig;
 import com.example.wsdlconverter.exception.WsdlServiceException;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.cxf.endpoint.dynamic.DynamicClientFactory;
+import org.apache.cxf.ext.logging.LoggingInInterceptor;
+import org.apache.cxf.ext.logging.LoggingOutInterceptor;
 import org.apache.cxf.jaxws.endpoint.dynamic.JaxWsDynamicClientFactory;
 import org.apache.cxf.ws.security.wss4j.WSS4JOutInterceptor;
 import org.apache.wss4j.dom.handler.WSHandlerConstants;
@@ -719,6 +721,10 @@ public class WsdlServiceAdapter {
      */
     private void configurePfsCompatibleDynamicSecurity() {
         try {
+            // 添加日志拦截器（用于调试）
+            dynamicClient.getOutInterceptors().add(new LoggingOutInterceptor());
+            dynamicClient.getInInterceptors().add(new LoggingInInterceptor());
+            
             // 使用我们自定义的PFS兼容拦截器，传递所有PFS参数
             PfsCompatibleSecurityConfig.PfsWsSecurityInterceptor pfsInterceptor = 
                 pfsSecurityConfig.createPfsInterceptor(

@@ -71,7 +71,8 @@ cxf:
 logging:
   level:
     com.example.wsdlconverter: DEBUG
-    org.apache.cxf: INFO
+    org.apache.cxf: DEBUG
+    org.apache.cxf.interceptor: DEBUG
     org.springframework.web: INFO
   pattern:
     console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
