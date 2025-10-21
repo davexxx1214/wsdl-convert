@@ -211,7 +211,21 @@ public class WsdlServiceAdapter {
      */
     private void createDynamicClient(String wsdlSource) throws Exception {
         DynamicClientFactory factory = JaxWsDynamicClientFactory.newInstance();
+        
+        // 如果使用PFS兼容模式，禁用WS-Policy处理
+        if (usePfsCompatible) {
+            // 在Bus级别禁用WS-Policy引擎
+            factory.getBus().setProperty("org.apache.cxf.ws.policy.PolicyEngine.enabled", Boolean.FALSE);
+            factory.getBus().setProperty("ws-security.validate.token", Boolean.FALSE);
+            log.info("已在Bus级别禁用WS-Policy引擎");
+        }
+        
         dynamicClient = factory.createClient(wsdlSource);
+        
+        // 禁用端点级别的WS-Policy拦截器
+        if (usePfsCompatible) {
+            disableWsPolicyProcessing();
+        }
         
         // 配置安全设置（如果启用）
         if (securityEnabled) {
@@ -698,6 +712,31 @@ public class WsdlServiceAdapter {
         }
     }
 
+    /**
+     * 禁用WS-Policy处理（用于自定义认证）
+     */
+    private void disableWsPolicyProcessing() {
+        try {
+            // 移除所有WS-Policy相关的拦截器
+            dynamicClient.getEndpoint().getOutInterceptors().removeIf(
+                interceptor -> interceptor.getClass().getName().contains("policy") ||
+                              interceptor.getClass().getName().contains("Policy") ||
+                              interceptor.getClass().getName().contains("SecureConversation")
+            );
+            
+            dynamicClient.getEndpoint().getInInterceptors().removeIf(
+                interceptor -> interceptor.getClass().getName().contains("policy") ||
+                              interceptor.getClass().getName().contains("Policy") ||
+                              interceptor.getClass().getName().contains("SecureConversation")
+            );
+            
+            log.info("已禁用WS-Policy和WS-SecureConversation处理，使用自定义PFS认证");
+            
+        } catch (Exception e) {
+            log.warn("禁用WS-Policy处理时出错: {}", e.getMessage());
+        }
+    }
+    
     /**
      * 配置动态客户端的安全设置
      */
