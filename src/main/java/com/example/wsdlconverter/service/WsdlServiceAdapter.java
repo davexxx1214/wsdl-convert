@@ -210,21 +210,21 @@ public class WsdlServiceAdapter {
      * 创建动态客户端
      */
     private void createDynamicClient(String wsdlSource) throws Exception {
-        DynamicClientFactory factory = JaxWsDynamicClientFactory.newInstance();
+        // 获取或创建Bus
+        org.apache.cxf.Bus bus = org.apache.cxf.BusFactory.getDefaultBus();
         
-        // 先创建客户端
-        dynamicClient = factory.createClient(wsdlSource);
-        
-        // 如果使用PFS兼容模式，禁用WS-Policy处理
+        // 如果使用PFS兼容模式，启用SecureConversation但配置PFS认证
         if (usePfsCompatible) {
-            // 在Bus级别禁用WS-Policy引擎（通过客户端的Bus）
-            dynamicClient.getBus().setProperty("org.apache.cxf.ws.policy.PolicyEngine.enabled", Boolean.FALSE);
-            dynamicClient.getBus().setProperty("ws-security.validate.token", Boolean.FALSE);
-            log.info("已在Bus级别禁用WS-Policy引擎");
-            
-            // 禁用端点级别的WS-Policy拦截器
-            disableWsPolicyProcessing();
+            log.info("启用SecureConversation支持，使用PFS认证");
+            // 不禁用Policy引擎，让SecureConversation正常工作
+            // 但我们会在RST消息中使用PFS认证
         }
+        
+        // 创建工厂并使用该Bus
+        DynamicClientFactory factory = JaxWsDynamicClientFactory.newInstance(bus);
+        
+        // 创建客户端
+        dynamicClient = factory.createClient(wsdlSource);
         
         // 配置安全设置（如果启用）
         if (securityEnabled) {
@@ -712,27 +712,30 @@ public class WsdlServiceAdapter {
     }
 
     /**
-     * 禁用WS-Policy处理（用于自定义认证）
+     * 配置SecureConversation使用PFS认证
      */
-    private void disableWsPolicyProcessing() {
+    private void configureSecureConversationWithPfs() {
         try {
-            // 移除所有WS-Policy相关的拦截器
-            dynamicClient.getEndpoint().getOutInterceptors().removeIf(
-                interceptor -> interceptor.getClass().getName().contains("policy") ||
-                              interceptor.getClass().getName().contains("Policy") ||
-                              interceptor.getClass().getName().contains("SecureConversation")
-            );
+            log.info("配置SecureConversation使用PFS认证...");
             
-            dynamicClient.getEndpoint().getInInterceptors().removeIf(
-                interceptor -> interceptor.getClass().getName().contains("policy") ||
-                              interceptor.getClass().getName().contains("Policy") ||
-                              interceptor.getClass().getName().contains("SecureConversation")
-            );
+            // SecureConversation的RST请求需要认证
+            // 我们需要在SecureConversation拦截器之后添加PFS拦截器
             
-            log.info("已禁用WS-Policy和WS-SecureConversation处理，使用自定义PFS认证");
+            // 为RST请求配置PFS认证
+            Map<String, Object> requestContext = dynamicClient.getRequestContext();
+            
+            // 配置用户名和密码（SecureConversation会使用）
+            requestContext.put("ws-security.username", securityUsername);
+            requestContext.put("ws-security.password", securityPassword);
+            requestContext.put("ws-security.password.type", "PasswordText");
+            
+            // 配置SecureConversation生命周期
+            requestContext.put("ws-security.sc.lifetime", "300000"); // 5分钟
+            
+            log.info("SecureConversation配置完成");
             
         } catch (Exception e) {
-            log.warn("禁用WS-Policy处理时出错: {}", e.getMessage());
+            log.error("配置SecureConversation失败: {}", e.getMessage(), e);
         }
     }
     
@@ -755,7 +758,7 @@ public class WsdlServiceAdapter {
     }
     
     /**
-     * 配置PFS兼容的动态客户端安全设置
+     * 配置PFS兼容的动态客户端安全设置（支持SecureConversation）
      */
     private void configurePfsCompatibleDynamicSecurity() {
         try {
@@ -763,7 +766,23 @@ public class WsdlServiceAdapter {
             dynamicClient.getOutInterceptors().add(new LoggingOutInterceptor());
             dynamicClient.getInInterceptors().add(new LoggingInInterceptor());
             
-            // 使用我们自定义的PFS兼容拦截器，传递所有PFS参数
+            // 首先配置SecureConversation的基本认证
+            // 这会用于RST握手消息
+            configureSecureConversationWithPfs();
+            
+            // 然后配置标准的WS-Security（用于RST请求）
+            // SecureConversation会自动使用这些凭据进行RST握手
+            Map<String, Object> properties = new HashMap<>();
+            properties.put(WSHandlerConstants.ACTION, WSHandlerConstants.USERNAME_TOKEN);
+            properties.put(WSHandlerConstants.USER, securityUsername);
+            properties.put(WSHandlerConstants.PASSWORD_TYPE, "PasswordText");
+            properties.put(WSHandlerConstants.PW_CALLBACK_REF, new ClientPasswordCallback(securityPassword));
+            
+            WSS4JOutInterceptor wssOut = new WSS4JOutInterceptor(properties);
+            dynamicClient.getOutInterceptors().add(wssOut);
+            
+            // 最后添加PFS拦截器（用于业务消息，在SecureConversation之后）
+            // 注意：这个拦截器的Phase应该在SecureConversation之后
             PfsCompatibleSecurityConfig.PfsWsSecurityInterceptor pfsInterceptor = 
                 pfsSecurityConfig.createPfsInterceptor(
                     securityUsername, 
@@ -773,14 +792,15 @@ public class WsdlServiceAdapter {
                     pfsChangePassword
                 );
             
+            // PFS拦截器添加到后面，这样SecureConversation会先处理
             dynamicClient.getOutInterceptors().add(pfsInterceptor);
             
-            log.info("动态客户端PFS兼容安全配置完成 - ClientID: {}, WindowsAuth: {}, ChangePassword: {}", 
+            log.info("动态客户端SecureConversation+PFS配置完成 - ClientID: {}, WindowsAuth: {}, ChangePassword: {}", 
                     pfsClientId, pfsWindowsAuthentication, pfsChangePassword);
             
         } catch (Exception e) {
-            log.error("配置PFS兼容安全设置失败，回退到标准配置: {}", e.getMessage());
-            configureStandardDynamicSecurity();
+            log.error("配置PFS兼容安全设置失败: {}", e.getMessage(), e);
+            throw new RuntimeException("无法配置SecureConversation + PFS安全", e);
         }
     }
     

@@ -1,0 +1,30 @@
+# 测试配置 - 不使用WSDL文件
+# 如果WSDL中的WS-Policy无法禁用，可以尝试这个配置
+
+wsdl:
+  service:
+    url: https://localhost:6666/pamservicelayer/service
+    namespace: http://tempuri.org/
+  
+  # 不使用WSDL文件
+  file:
+    url: ""
+    path: ""
+  
+  security:
+    enabled: true
+    username: your_username
+    password: your_password
+    use-pfs-compatible: true
+    
+    pfs:
+      client-id: "DEFAULT"
+      windows-authentication: false
+      change-password: false
+
+logging:
+  level:
+    com.example.wsdlconverter: DEBUG
+    org.apache.cxf: DEBUG
+    org.apache.cxf.interceptor: DEBUG
+    org.apache.cxf.phase: DEBUG
